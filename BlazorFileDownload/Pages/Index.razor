@@ -1,0 +1,78 @@
+﻿@page "/"
+@inject IJSRuntime JSRuntime
+@using System.IO
+@using Microsoft.AspNetCore.Components.Forms
+
+<h3>Upload File</h3>
+
+<InputFile OnChange="HandleFileSelected" />
+<script src="downloadFile.js"></script>
+
+
+@if (file != null)
+{
+    <p><strong>File Name:</strong> @file.Name</p>
+    <p><strong>File Size (bytes):</strong> @file.Size</p>
+    <img src="@fileUrl" alt="Selected File" style="max-width: 200px; max-height: 200px;" />
+    <button @onclick="DownloadFile">Download File</button>
+}
+
+@code {
+    private IBrowserFile file;
+    private string fileUrl;
+    private byte[] fileBuffer; // Added to store file content for download
+
+    private async Task HandleFileSelected(InputFileChangeEventArgs e)
+    {
+        file = e.File;
+        fileUrl = string.Empty;
+
+        if (file != null)
+        {
+            var buffer = new byte[file.Size];
+            await file.OpenReadStream().ReadAsync(buffer);
+
+            // Determine MIME type based on file extension
+            var mimeType = GetMimeType(file.Name);
+
+            // Generate data URI for the file content
+            var imageData = Convert.ToBase64String(buffer);
+            fileUrl = $"data:{mimeType};base64,{imageData}";
+
+            // Store file buffer for download
+            fileBuffer = buffer;
+        }
+    }
+
+    private string GetMimeType(string fileName)
+    {
+        var extension = Path.GetExtension(fileName).ToLowerInvariant();
+        return extension switch
+        {
+            ".png" => "image/png",
+            ".jpg" or ".jpeg" => "image/jpeg",
+            ".gif" => "image/gif",
+            ".bmp" => "image/bmp",
+            ".pdf" => "application/pdf",
+            ".doc" or ".docx" => "application/msword",
+            ".xls" or ".xlsx" => "application/vnd.ms-excel",
+            ".ppt" or ".pptx" => "application/vnd.ms-powerpoint",
+            _ => "application/octet-stream", // fallback MIME type for other file types
+        };
+    }
+
+    private async Task DownloadFile()
+    {
+        if (fileBuffer != null)
+        {
+            // Convert byte array to base64 string
+            var base64String = Convert.ToBase64String(fileBuffer);
+
+            // Generate data URI for the file content
+            var dataUri = $"data:application/octet-stream;base64,{base64String}";
+
+            // Call the JavaScript function to download the file
+            await JSRuntime.InvokeVoidAsync("downloadFile", file.Name, fileBuffer);
+        }
+    }
+}
